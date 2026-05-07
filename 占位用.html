@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>船舱 · 纯音叙事</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;color:#333;
+    font-family:sans-serif;overflow:hidden;user-select:none;
+    -webkit-tap-highlight-color:transparent;}
+  #pulse{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(circle,rgba(120,0,0,0) 0%,rgba(0,0,0,0) 70%);
+    transition:background .2s;z-index:1;}
+  #start{position:fixed;inset:0;display:flex;align-items:center;
+    justify-content:center;background:#000;color:#666;font-size:14px;
+    letter-spacing:.4em;cursor:pointer;z-index:10;}
+  /* 按键现在占据整个屏幕，方便盲按 */
+  #btn{position:absolute;inset:0;background:transparent;
+    border:none;outline:none;touch-action:none;z-index:5;}
+</style>
+</head>
+<body>
+  <div id="pulse"></div>
+  <button id="btn" aria-label="action" disabled></button>
+  <div id="start">点 击 加 载 游 戏</div>
+
+<script>
+const AC = window.AudioContext || window.webkitAudioContext;
+let ctx, masterGain, actionGain;
+
+// 音频文件清单引用字典
+const soundUrls = {
+  bg_ambient: 'assets/bg_ambient.mp3',
+  monster_step: 'assets/monster_step.mp3',
+  monster_caught: 'assets/monster_caught.mp3',
+  player_metal: 'assets/player_metal.mp3',
+  player_mud: 'assets/player_mud.mp3',
+  action_getup: 'assets/action_getup.mp3',
+  action_door: 'assets/action_door.mp3',
+  escape_light: 'assets/escape_light.mp3'
+};
+const buffers = {}; // 存放解码后的音频数据
+
+async function loadAllSounds() {
+  const startBtn = document.getElementById('start');
+  startBtn.textContent = '加 载 中 . . .';
+  ctx = new AC();
+  masterGain = ctx.createGain(); masterGain.gain.value = 1.0;
+  actionGain = ctx.createGain(); actionGain.gain.value = 0; // 动作通道默认静音(松手状态)
+  actionGain.connect(masterGain);
+  masterGain.connect(ctx.destination);
+
+  // 批量下载并解码所有音频
+  for (let key in soundUrls) {
+    try {
+      const resp = await fetch(soundUrls[key]);
+      const arrayBuffer = await resp.arrayBuffer();
+      buffers[key] = await ctx.decodeAudioData(arrayBuffer);
+    } catch(e) {
+      console.warn(`找不到音频文件: ${soundUrls[key]}`);
+    }
+  }
+}
+
+// 通用的播放函数
+function playSound(bufferName, outputNode, loop = false, volume = 1.0, lowpassFreq = null) {
+  if(!buffers[bufferName]) return null;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = buffers[bufferName];
+  src.loop = loop;
+
+  const g = ctx.createGain();
+  g.gain.value = volume;
+
+  let targetNode = g;
+  // 如果需要做闷声效果(比如怪物距离)
+  if (lowpassFreq) {
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = lowpassFreq;
+    src.connect(lp).connect(g);
+  } else {
+    src.connect(g);
+  }
+
+  g.connect(outputNode);
+  src.start(t);
+  return src;
+}
+
+/* ==========================================
+   叙事时间轴
+   ========================================== */
+const ESCAPE_DISTANCE = 40;
+let traveled = 0, lastTick = 0, holding = false, gameOver = false;
+let currentTerrain = 'player_metal'; // 默认走在金属上
+
+const storyline = [
+  { time: 0.1, type: 'action_getup', triggered: false },
+  { time: 6.0, type: 'action_door', triggered: false },
+  { time: 14.0, type: 'terrainMud', triggered: false }
+];
+
+function updateNarrative() {
+  for (let event of storyline) {
+    if (!event.triggered && traveled >= event.time) {
+      event.triggered = true;
+      if(event.type === 'terrainMud') {
+        currentTerrain = 'player_mud'; // 切换音频文件！
+      } else {
+        // 播放动作长音频，挂载在 actionGain 上。松手时通道静音，完美实现“屏息不动”
+        playSound(event.type, actionGain, false, 1.0);
+      }
+    }
+  }
+}
+
+/* ==========================================
+   玩家行动 (连续触发脚步声文件)
+   ========================================== */
+let footstep = {timer:null, active:false};
+function startAction(){
+  if(footstep.active) return;
+  footstep.active = true;
+  // 恢复动作通道音量 (淡入防止爆音)
+  actionGain.gain.setTargetAtTime(1, ctx.currentTime, 0.03);
+
+  const tick = ()=>{
+    if(!footstep.active) return;
+    if(traveled > 2.5 && traveled !== ESCAPE_DISTANCE) {
+      playSound(currentTerrain, actionGain, false, 0.8);
+    }
+    const interval = currentTerrain === 'player_mud' ? 700 : 500;
+    footstep.timer = setTimeout(tick, interval + Math.random()*100);
+  };
+  tick();
+}
+function stopAction(){
+  footstep.active = false;
+  clearTimeout(footstep.timer);
+  // 松手瞬间静音动作通道，不管脚步声还是开门声立刻暂停！
+  actionGain.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+}
+
+/* ==========================================
+   怪物追踪逻辑
+   ========================================== */
+let monster = { active:false, distance:1.2, approachId:0 };
+function monsterApproach(){
+  if(monster.active || gameOver) return;
+  monster.active = true; monster.distance = 1.2;
+  loopMonsterStep(++monster.approachId);
+}
+function loopMonsterStep(id){
+  if(!monster.active || id!==monster.approachId) return;
+  monster.distance += holding ? -0.06 : 0.08;
+  monster.distance = Math.max(0, Math.min(1.3, monster.distance));
+
+  const intensity = Math.max(0, 1 - monster.distance);
+  // 视觉反馈仅剩屏幕四周的微弱红光，代表心跳压迫感
+  document.getElementById('pulse').style.background = `radial-gradient(circle,rgba(110,0,0,${intensity*0.7}) 0%,rgba(0,0,0,0) 80%)`;
+
+  if(monster.distance <= 0) { caught(); return; }
+  else if(monster.distance >= 1.25) {
+    monster.active = false;
+    setTimeout(monsterApproach, 7000+Math.random()*5000);
+    return;
+  }
+
+  // 怪物声音挂载在 masterGain，不受玩家按键暂停影响
+  playSound('monster_step', masterGain, false, 0.2 + intensity*0.8, 100 + intensity*1000);
+  setTimeout(()=>loopMonsterStep(id), 650 - intensity*250);
+}
+
+/* ==========================================
+   核心进程
+   ========================================== */
+function tickProgress(){
+  if(gameOver) return;
+  const now = performance.now();
+  const dt = (now-lastTick)/1000; lastTick=now;
+  if(holding) {
+    traveled += dt;
+    updateNarrative();
+  }
+  if(traveled >= ESCAPE_DISTANCE){ escaped(); return; }
+  requestAnimationFrame(tickProgress);
+}
+
+function caught(){
+  gameOver = true; stopAction();
+  playSound('monster_caught', masterGain, false, 1.2);
+  document.getElementById('pulse').style.background='rgba(150,0,0,1)';
+}
+function escaped(){
+  gameOver = true; stopAction();
+  playSound('escape_light', masterGain, false, 1.0);
+  document.body.style.transition='background 4s'; document.body.style.background='#fff';
+}
+
+const btn = document.getElementById('btn');
+function press(){ if(gameOver) return; holding=true; startAction(); }
+function release(){ holding=false; stopAction(); }
+btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release);
+btn.addEventListener('pointerleave', release); btn.addEventListener('pointercancel', release);
+
+document.getElementById('start').addEventListener('click', async ()=>{
+  await loadAllSounds(); // 等待加载完音频
+  document.getElementById('start').style.display='none';
+  btn.removeAttribute('disabled');
+  playSound('bg_ambient', masterGain, true, 0.6); // 播放环境底噪
+  lastTick = performance.now();
+  requestAnimationFrame(tickProgress);
+  setTimeout(monsterApproach, 8000);
+});
+</script>
+</body>
+</html>
