@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>未离 · 声音叙事原型</title>
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: #050505;
+  color: #ddd;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+button, input {
+  font-family: inherit;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+}
+
+.screen.active {
+  display: flex;
+}
+
+/* 介绍规则遮罩层 */
+#introOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro-card {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  text-align: center;
+}
+
+.intro-rules {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #bbb;
+  margin: 20px 0 26px 0;
+  border-top: 1px solid #222;
+  border-bottom: 1px solid #222;
+  padding: 16px 0;
+}
+
+.intro-rules li {
+  margin-bottom: 10px;
+  list-style-type: none;
+  position: relative;
+  padding-left: 18px;
+}
+
+.intro-rules li::before {
+  content: "•";
+  position: absolute;
+  left: 6px;
+  color: #42ff9a;
+}
+
+#lobby {
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at center, rgba(90,20,20,.18), transparent 45%),
+    #050505;
+}
+
+.title {
+  color: #fff;
+  font-size: 22px;
+  letter-spacing: .35em;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  color: #777;
+  font-size: 12px;
+  margin-bottom: 32px;
+}
+
+.menu-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.menu-btn {
+  min-width: 170px;
+  padding: 15px 18px;
+  border: 1px solid #333;
+  background: #111;
+  color: #eee;
+  border-radius: 10px;
+  letter-spacing: .18em;
+  cursor: pointer;
+  transition: .15s;
+}
+
+.menu-btn:hover {
+  transform: translateY(-1px);
+  border-color: #999;
+}
+
+#bootLog {
+  width: min(780px, 92vw);
+  max-height: 170px;
+  overflow: auto;
+  margin-top: 24px;
+  padding: 12px 14px;
+  border: 1px solid #222;
+  border-radius: 8px;
+  background: rgba(0,0,0,.45);
+  color: #999;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+#playScreen {
+  z-index: 20;
+  background: #000;
+  align-items: center;
+  justify-content: center;
+}
+
+#dangerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  pointer-events: none;
+  background: transparent;
+  transition: background .12s linear;
+}
+
+#playButton {
+  position: relative;
+  z-index: 22;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.13);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,.08), transparent 35%),
+    rgba(255,255,255,.025);
+  box-shadow:
+    0 0 24px rgba(255,255,255,.04),
+    inset 0 0 28px rgba(255,255,255,.035);
+  cursor: pointer;
+  touch-action: none;
+  transition: transform .08s ease, border-color .08s ease, background .08s ease, box-shadow .08s ease;
+}
+
+#playButton::after {
+  content: "";
+  position: absolute;
+  inset: 31px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+#playButton.pressed {
+  transform: scale(.88);
+  border-color: rgba(255,255,255,.32);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,.16), transparent 38%),
+    rgba(255,255,255,.07);
+  box-shadow:
+    0 0 22px rgba(255,255,255,.08),
+    inset 0 0 38px rgba(255,255,255,.09);
+}
+
+#exitPlay {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 24;
+  opacity: .14;
+  border: 1px solid rgba(255,255,255,.18);
+  background: transparent;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+#exitPlay:hover {
+  opacity: .65;
+}
+
+#assistToggleWrap {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 25;
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 7px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+
+#assistToggleWrap:hover {
+  border-color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.85);
+}
+
+#assistToggleWrap input {
+  cursor: pointer;
+  accent-color: #42ff9a;
+  margin: 0;
+}
+
+#assistText {
+  position: absolute;
+  bottom: calc(50% + 98px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 22;
+  font-size: 15px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: .25em;
+  pointer-events: none;
+  transition: opacity 0.22s, color 0.15s;
+  opacity: 0;
+  text-align: center;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+#assistText.active {
+  opacity: 1;
+}
+
+#consoleScreen {
+  z-index: 30;
+  flex-direction: column;
+  background: #070707;
+}
+
+.console-header {
+  height: 58px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid #222;
+  background: #0b0b0b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+}
+
+.console-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 15px;
+  letter-spacing: .18em;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.small-btn {
+  border: 1px solid #333;
+  background: #151515;
+  color: #ddd;
+  border-radius: 7px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.small-btn:hover {
+  border-color: #888;
+}
+
+.console-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 430px 1fr;
+}
+
+.left-panel, .right-panel {
+  overflow: auto;
+  padding: 16px;
+}
+
+.left-panel {
+  border-right: 1px solid #222;
+  background: #090909;
+}
+
+.panel {
+  border: 1px solid #242424;
+  background: #101010;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.panel-title {
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: .12em;
+  margin-bottom: 12px;
+}
+
+.hint {
+  color: #888;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sound-card {
+  border: 1px solid #262626;
+  background: #151515;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.sound-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sound-name {
+  color: #f0f0f0;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 7px;
+  background: #803030;
+  box-shadow: 0 0 8px rgba(255,0,0,.25);
+}
+
+.status-dot.ok {
+  background: #41ff88;
+  box-shadow: 0 0 8px rgba(65,255,136,.55);
+}
+
+.status-dot.loading {
+  background: #ffd24a;
+}
+
+.status-dot.bad {
+  background: #ff4545;
+}
+
+.path-line {
+  font-size: 11px;
+  color: #777;
+  word-break: break-all;
+  margin-bottom: 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 98px 1fr 62px;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.row input[type="range"] {
+  width: 100%;
+  accent-color: #42ff9a;
+}
+
+.value {
+  color: #9cffc5;
+  text-align: right;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.preview-btn {
+  border: 1px solid #333;
+  background: #202020;
+  color: #eee;
+  border-radius: 8px;
+  padding: 9px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: .12s;
+}
+
+.preview-btn:hover {
+  border-color: #42ff9a;
+}
+
+.preview-btn.playing {
+  color: #111;
+  background: #42ff9a;
+  border-color: #42ff9a;
+  box-shadow: 0 0 14px rgba(66,255,154,.25);
+}
+
+.preview-btn.danger.playing {
+  background: #ff5555;
+  border-color: #ff5555;
+}
+
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.param-card {
+  border: 1px solid #242424;
+  background: #111;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+#consoleLog {
+  min-height: 130px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: #050505;
+  border: 1px solid #222;
+  border-radius: 10px;
+  padding: 12px;
+  color: #999;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 920px) {
+  .console-body {
+    grid-template-columns: 1fr;
+  }
+
+  .left-panel {
+    border-right: none;
+    border-bottom: 1px solid #222;
+    max-height: 48vh;
+  }
+
+  .param-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+
+<body>
+<!-- 首次进入规则介绍遮罩层 -->
+<div id="introOverlay">
+  <div class="intro-card">
+    <div class="title" style="margin-bottom:6px;">玩法规则说明</div>
+    <div class="subtitle" style="margin-bottom:0px; color:#555;">( 请带上耳机获得完整的声学体验 )</div>
+    <ul class="intro-rules">
+      <li><strong>长按：</strong>按住屏幕中央的圆形按键开始前行。</li>
+      <li><strong>松开：</strong>危险迫近时松开按键停止前进，等待时机再次按下。</li>
+      <li><strong>辅助提示：</strong>提供前行建议，可在游玩模式右上角切换开关。</li>
+    </ul>
+    <button id="closeIntro" class="menu-btn" style="width: 100%;">我明白了！</button>
+  </div>
+</div>
+
+<section id="lobby" class="screen active">
+  <div class="title">黑舱声叙事</div>
+  <div class="subtitle">按住前进 / 松开静止 / 以声音判断危险</div>
+  <div class="menu-row">
+    <button id="enterPlay" class="menu-btn">游玩模式</button>
+    <button id="enterConsole" class="menu-btn">控制台模式</button>
+  </div>
+  <div id="bootLog">页面已载入。请通过服务器访问本页面，不要直接 file:// 打开。</div>
+</section>
+
+<section id="playScreen" class="screen">
+  <div id="dangerOverlay"></div>
+  <div id="assistToggleWrap">
+    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+      <input type="checkbox" id="assistToggle" checked />
+      <span>辅助提示</span>
+    </label>
+  </div>
+  <div id="assistText"></div>
+  <button id="playButton" aria-label="hold to move"></button>
+  <button id="exitPlay">退出</button>
+</section>
+
+<section id="consoleScreen" class="screen">
+  <header class="console-header">
+    <h2>声音控制台</h2>
+    <div class="header-actions">
+      <button id="reloadAudio" class="small-btn">重新检测音频</button>
+      <button id="stopAll" class="small-btn">停止全部声音</button>
+      <button id="resetConfig" class="small-btn">恢复默认参数</button>
+      <button id="backLobby" class="small-btn">返回大厅</button>
+    </div>
+  </header>
+
+  <div class="console-body">
+    <aside class="left-panel">
+      <div class="panel">
+        <div class="panel-title">音频文件状态</div>
+        <div class="hint">
+          绿色表示文件可播放。若全部失败，请确认使用 http://localhost 或服务器访问，而不是直接双击 HTML。
+        </div>
+      </div>
+      <div id="soundList"></div>
+    </aside>
+
+    <main class="right-panel">
+      <div class="panel">
+        <div class="panel-title">场景预览</div>
+        <div class="preview-grid">
+          <button class="preview-btn" data-scene="ambient">环境底噪</button>
+          <button class="preview-btn" data-scene="metalWalk">金属地面行动</button>
+          <button class="preview-btn" data-scene="mudWalk">泥泞地面行动</button>
+          <button class="preview-btn" data-scene="getup">起身事件</button>
+          <button class="preview-btn" data-scene="door">铁门事件</button>
+          <button class="preview-btn" data-scene="monsterStepFar">怪物脚步：远处</button>
+          <button class="preview-btn" data-scene="monsterStepNear">怪物脚步：近处</button>
+          <button class="preview-btn" data-scene="monsterVoiceFar">怪物叫声：远处</button>
+          <button class="preview-btn" data-scene="monsterVoiceNear">怪物叫声：近处</button>
+          <button class="preview-btn danger" data-scene="caught">失败音效</button>
+          <button class="preview-btn" data-scene="escape">逃脱音效</button>
+        </div>
+        <div class="hint" style="margin-top:10px;">
+          怪物相关预览会使用空间方位。建议戴耳机测试，前后感会受浏览器和耳机影响。
+        </div>
+      </div>
+
+      <div class="param-grid">
+        <div class="param-card">
+          <div class="panel-title">玩法参数</div>
+          <div id="gameParams"></div>
+        </div>
+
+        <div class="param-card">
+          <div class="panel-title">剧情时间轴</div>
+          <div id="timelineParams"></div>
+          <div class="hint">
+            时间轴以玩家按住按钮累计前进时间为准。事件播放时会暂停走路音效，事件结束后才恢复。
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">诊断日志</div>
+        <div id="consoleLog">控制台已就绪。</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<script>
+const DEFAULT_CONFIG = {
+  sounds: {
+    bg_ambient: {
+      path: "./assets/bg_ambient.mp3",
+      volume: 0.01,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: true,
+      spatial: false
+    },
+
+    player_metal: {
+      path: "./assets/player_metal.mp3",
+      volume: 0.55,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: true,
+      spatial: false
+    },
+
+    player_mud: {
+      path: "./assets/player_mud.mp3",
+      volume: 0.55,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: true,
+      spatial: false
+    },
+
+    action_getup: {
+      path: "./assets/action_getup.mp3",
+      volume: 0.8,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: false,
+      spatial: false
+    },
+
+    action_door: {
+      path: "./assets/action_door.mp3",
+      volume: 1,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: false,
+      spatial: false
+    },
+
+    monster_step: {
+      path: "./assets/monster_step.mp3",
+      volume: 2,
+      pan: 0,
+      rate: 1,
+      lowpass: 2600,
+      loop: false,
+      spatial: true
+    },
+
+    monster_voice: {
+      path: "./assets/monster_voice.mp3",
+      volume: 1.0,
+      pan: 0,
+      rate: 1,
+      lowpass: 3800,
+      loop: false,
+      spatial: true
+    },
+
+    monster_caught: {
+      path: "./assets/monster_caught.mp3",
+      volume: 1,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: false,
+      spatial: false
+    },
+
+    escape_light: {
+      path: "./assets/escape_light.mp3",
+      volume: 0.85,
+      pan: 0,
+      rate: 1,
+      lowpass: 20000,
+      loop: false,
+      spatial: false
+    }
+  },
+
+  game: {
+    escapeDistance: 120,
+
+    firstMonsterDelay: 17,
+    monsterReturnMin: 10,
+    monsterReturnMax: 20,
+
+    monsterStartDistance: 2.22,
+    monsterEscapeDistance: 3.85,
+    monsterApproachSpeed: 0.35,
+    monsterRetreatSpeed: 0.45,
+    monsterThinkInterval: 0.32,
+
+    monsterFarStepInterval: 1.05,
+    monsterNearStepInterval: 0.38,
+
+    monsterSpatialRadius: 7.5,
+    monsterMinSpatialRadius: 0.8,
+
+    monsterVoiceMinInterval: 3.5,
+    monsterVoiceMaxInterval: 8.5,
+    monsterVoiceChanceWhenFar: 0.42,
+    monsterVoiceChanceWhenNear: 0.9,
+    monsterCoastDuration: 1.5
+  },
+
+  timeline: {
+    getupTime: 0.0,
+    doorTime: 60,
+    mudTime: 60
+  }
+};
+
+const STORAGE_KEY = "weili_sound_game_monster_voice_v8";
+
+let config = loadConfig();
+
+let audioCtx = null;
+let masterGain = null;
+
+const sounds = {};
+const activeSceneButtons = new Map();
+
+let currentScreen = "lobby";
+let gameRunning = false;
+let gameOver = false;
+let holding = false;
+let progress = 0;
+let currentTerrain = "player_metal";
+let lastFrameTime = 0;
+let lastReleaseTime = 0;
+
+let eventQueue = [];
+let currentEventKey = null;
+
+let assistMode = true;
+
+let timelineState = {
+  getup: false,
+  door: false,
+  mud: false
+};
+
+let monster = {
+  active: false,
+  distance: 1.35,
+
+  angle: 0,
+  targetAngle: 0,
+  wasApproaching: true,
+  x: 0,
+  y: 0,
+  z: -7,
+
+  thinkTimer: null,
+  stepTimer: null,
+  voiceTimer: null
+};
+
+const $ = id => document.getElementById(id);
+
+function clone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function merge(base, extra) {
+  for (const k in extra) {
+    if (
+      extra[k] &&
+      typeof extra[k] === "object" &&
+      !Array.isArray(extra[k]) &&
+      base[k] &&
+      typeof base[k] === "object"
+    ) {
+      merge(base[k], extra[k]);
+    } else {
+      base[k] = extra[k];
+    }
+  }
+  return base;
+}
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return clone(DEFAULT_CONFIG);
+    return merge(clone(DEFAULT_CONFIG), JSON.parse(raw));
+  } catch {
+    return clone(DEFAULT_CONFIG);
+  }
+}
+
+function saveConfig() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function switchScreen(name) {
+  $("lobby").classList.remove("active");
+  $("playScreen").classList.remove("active");
+  $("consoleScreen").classList.remove("active");
+
+  if (name === "lobby") $("lobby").classList.add("active");
+  if (name === "play") $("playScreen").classList.add("active");
+  if (name === "console") $("consoleScreen").classList.add("active");
+
+  currentScreen = name;
+}
+
+function resolvedUrl(path) {
+  return new URL(path, window.location.href).href;
+}
+
+function log(msg) {
+  const box = $("consoleLog");
+  if (!box) return;
+  const time = new Date().toLocaleTimeString();
+  box.textContent += `\n[${time}] ${msg}`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function boot(msg) {
+  $("bootLog").textContent = msg;
+}
+
+async function ensureAudioSystem() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 1;
+    masterGain.connect(audioCtx.destination);
+
+    setupListener();
+    createAllSoundObjects();
+  }
+
+  if (audioCtx.state === "suspended") {
+    await audioCtx.resume();
+  }
+
+  await checkAllAudioFiles();
+}
+
+function setupListener() {
+  const l = audioCtx.listener;
+
+  if (l.positionX) {
+    l.positionX.value = 0;
+    l.positionY.value = 0;
+    l.positionZ.value = 0;
+    l.forwardX.value = 0;
+    l.forwardY.value = 0;
+    l.forwardZ.value = -1;
+    l.upX.value = 0;
+    l.upY.value = 1;
+    l.upZ.value = 0;
+  } else if (l.setPosition) {
+    l.setPosition(0, 0, 0);
+    l.setOrientation(0, 0, -1, 0, 1, 0);
+  }
+}
+
+function createAllSoundObjects() {
+  for (const key of Object.keys(config.sounds)) {
+    if (sounds[key]) continue;
+
+    const c = config.sounds[key];
+
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.src = c.path;
+    audio.loop = !!c.loop;
+    audio.volume = 1;
+
+    const source = audioCtx.createMediaElementSource(audio);
+    const filter = audioCtx.createBiquadFilter();
+    const gain = audioCtx.createGain();
+
+    filter.type = "lowpass";
+
+    let stereo = null;
+    let panner3d = null;
+
+    source.connect(filter);
+    filter.connect(gain);
+
+    if (c.spatial) {
+      panner3d = audioCtx.createPanner();
+      panner3d.panningModel = "HRTF";
+      panner3d.distanceModel = "inverse";
+      panner3d.refDistance = 1;
+      panner3d.maxDistance = 18;
+      panner3d.rolloffFactor = 1.3;
+      panner3d.coneInnerAngle = 360;
+      panner3d.coneOuterAngle = 360;
+      panner3d.coneOuterGain = 0;
+
+      gain.connect(panner3d);
+      panner3d.connect(masterGain);
+    } else {
+      stereo = audioCtx.createStereoPanner();
+      gain.connect(stereo);
+      stereo.connect(masterGain);
+    }
+
+    const obj = {
+      key,
+      audio,
+      source,
+      filter,
+      gain,
+      stereo,
+      panner3d,
+      loaded: false,
+      playing: false
+    };
+
+    audio.addEventListener("ended", () => {
+      obj.playing = false;
+      updateSceneButtonsBySound(key);
+
+      if (key === currentEventKey) {
+        finishCurrentEvent();
+      }
+    });
+
+    audio.addEventListener("pause", () => {
+      obj.playing = false;
+      updateSceneButtonsBySound(key);
+    });
+
+    audio.addEventListener("play", () => {
+      obj.playing = true;
+      updateSceneButtonsBySound(key);
+    });
+
+    sounds[key] = obj;
+    applySoundParams(key);
+  }
+}
+
+function refreshAudioSources() {
+  for (const key of Object.keys(sounds)) {
+    const s = sounds[key];
+    s.audio.src = config.sounds[key].path;
+    s.audio.loop = !!config.sounds[key].loop;
+    s.loaded = false;
+    applySoundParams(key);
+  }
+}
+
+function setPannerPosition(panner, x, y, z) {
+  if (!panner) return;
+
+  if (panner.positionX) {
+    panner.positionX.setTargetAtTime(x, audioCtx.currentTime, 0.03);
+    panner.positionY.setTargetAtTime(y, audioCtx.currentTime, 0.03);
+    panner.positionZ.setTargetAtTime(z, audioCtx.currentTime, 0.03);
+  } else if (panner.setPosition) {
+    panner.setPosition(x, y, z);
+  }
+}
+
+function applySoundParams(key, override = {}) {
+  const s = sounds[key];
+  const c = config.sounds[key];
+  if (!s || !c) return;
+
+  const volume = override.volume ?? c.volume ?? 1;
+  const pan = override.pan ?? c.pan ?? 0;
+  const rate = override.rate ?? c.rate ?? 1;
+  const lowpass = override.lowpass ?? c.lowpass ?? 20000;
+
+  s.gain.gain.setTargetAtTime(volume, audioCtx.currentTime, 0.01);
+  s.filter.frequency.setTargetAtTime(clamp(lowpass, 40, 20000), audioCtx.currentTime, 0.01);
+  s.audio.playbackRate = clamp(rate, 0.25, 2);
+  s.audio.loop = !!c.loop;
+
+  if (s.stereo) {
+    s.stereo.pan.setTargetAtTime(clamp(pan, -1, 1), audioCtx.currentTime, 0.01);
+  }
+
+  if (s.panner3d) {
+    const x = override.x ?? pan * 4;
+    const y = override.y ?? 0;
+    const z = override.z ?? -4;
+    setPannerPosition(s.panner3d, x, y, z);
+  }
+}
+
+async function checkAllAudioFiles() {
+  const keys = Object.keys(config.sounds);
+
+  for (const key of keys) {
+    setSoundStatus(key, "loading");
+
+    const s = sounds[key];
+    const url = resolvedUrl(config.sounds[key].path);
+
+    try {
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("检测超时")), 6000);
+
+        const clean = () => {
+          clearTimeout(timeout);
+          s.audio.removeEventListener("canplaythrough", ok);
+          s.audio.removeEventListener("loadedmetadata", ok);
+          s.audio.removeEventListener("error", bad);
+        };
+
+        const ok = () => {
+          clean();
+          resolve();
+        };
+
+        const bad = () => {
+          clean();
+          reject(new Error("浏览器无法读取该音频"));
+        };
+
+        s.audio.addEventListener("canplaythrough", ok, { once: true });
+        s.audio.addEventListener("loadedmetadata", ok, { once: true });
+        s.audio.addEventListener("error", bad, { once: true });
+
+        s.audio.load();
+      });
+
+      s.loaded = true;
+      setSoundStatus(key, "ok");
+      setDuration(key, s.audio.duration);
+
+    } catch (err) {
+      s.loaded = false;
+      setSoundStatus(key, "bad");
+      log(`音频检测失败：${key}\n路径：${url}\n原因：${err.message}`);
+    }
+  }
+
+  boot(`音频检测完成。
+
+目录中现在需要包含：
+assets/bg_ambient.mp3
+assets/player_metal.mp3
+assets/player_mud.mp3
+assets/action_getup.mp3
+assets/action_door.mp3
+assets/monster_step.mp3
+assets/monster_voice.mp3
+assets/monster_caught.mp3
+assets/escape_light.mp3
+
+初次进入页面可能有数秒的加载时间
+`);
+}
+
+async function playSingleton(key, options = {}) {
+  const s = sounds[key];
+
+  if (!s || !s.loaded) {
+    log(`无法播放：${key} 未加载成功。`);
+    return;
+  }
+
+  applySoundParams(key, options);
+
+  if (options.loop !== undefined) {
+    s.audio.loop = !!options.loop;
+  }
+
+  if (options.restart) {
+    try {
+      s.audio.currentTime = 0;
+    } catch {}
+  }
+
+  if (!s.audio.paused) {
+    return;
+  }
+
+  try {
+    await s.audio.play();
+  } catch (err) {
+    log(`播放失败：${key}：${err.message}`);
+  }
+}
+
+function pauseSound(key) {
+  const s = sounds[key];
+  if (!s) return;
+  s.audio.pause();
+}
+
+function stopSound(key) {
+  const s = sounds[key];
+  if (!s) return;
+
+  s.audio.pause();
+
+  try {
+    s.audio.currentTime = 0;
+  } catch {}
+
+  s.playing = false;
+  updateSceneButtonsBySound(key);
+}
+
+function stopAllSounds() {
+  for (const key of Object.keys(sounds)) {
+    stopSound(key);
+  }
+
+  clearTimeout(monster.thinkTimer);
+  clearTimeout(monster.stepTimer);
+  clearTimeout(monster.voiceTimer);
+
+  monster.thinkTimer = null;
+  monster.stepTimer = null;
+  monster.voiceTimer = null;
+
+  clearActiveSceneButtons();
+}
+
+function buildSoundList() {
+  const wrap = $("soundList");
+  wrap.innerHTML = "";
+
+  for (const key of Object.keys(config.sounds)) {
+    const c = config.sounds[key];
+
+    const card = document.createElement("div");
+    card.className = "sound-card";
+    card.innerHTML = `
+      <div class="sound-top">
+        <div class="sound-name"><span id="dot_${key}" class="status-dot"></span>${key}</div>
+        <button class="small-btn" data-single="${key}">播放/停止</button>
+      </div>
+      <div class="path-line">
+        ${c.path}<br>
+        <span id="duration_${key}">时长：未检测</span>
+      </div>
+
+      <div class="row">
+        <span>音量</span>
+        <input data-sound-param="${key}:volume" type="range" min="0" max="2" step="0.01" value="${c.volume}">
+        <span class="value" id="val_${key}_volume">${Number(c.volume).toFixed(2)}</span>
+      </div>
+
+      <div class="row">
+        <span>声像</span>
+        <input data-sound-param="${key}:pan" type="range" min="-1" max="1" step="0.01" value="${c.pan}">
+        <span class="value" id="val_${key}_pan">${Number(c.pan).toFixed(2)}</span>
+      </div>
+
+      <div class="row">
+        <span>速度</span>
+        <input data-sound-param="${key}:rate" type="range" min="0.25" max="2" step="0.01" value="${c.rate}">
+        <span class="value" id="val_${key}_rate">${Number(c.rate).toFixed(2)}</span>
+      </div>
+
+      <div class="row">
+        <span>低通</span>
+        <input data-sound-param="${key}:lowpass" type="range" min="80" max="20000" step="10" value="${c.lowpass}">
+        <span class="value" id="val_${key}_lowpass">${Math.round(c.lowpass)}</span>
+      </div>
+    `;
+
+    wrap.appendChild(card);
+  }
+
+  wrap.querySelectorAll("[data-single]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await ensureAudioSystem();
+
+      const key = btn.dataset.single;
+      const s = sounds[key];
+
+      if (!s || !s.loaded) return;
+
+      if (s.audio.paused) {
+        await playSingleton(key, { restart: false });
+        btn.classList.add("playing");
+      } else {
+        stopSound(key);
+        btn.classList.remove("playing");
+      }
+    });
+  });
+
+  wrap.querySelectorAll("[data-sound-param]").forEach(input => {
+    input.addEventListener("input", e => {
+      const [key, param] = e.target.dataset.soundParam.split(":");
+      const value = Number(e.target.value);
+
+      config.sounds[key][param] = value;
+
+      const label = $(`val_${key}_${param}`);
+      if (label) {
+        label.textContent = param === "lowpass" ? String(Math.round(value)) : value.toFixed(2);
+      }
+
+      saveConfig();
+
+      if (sounds[key]) {
+        applySoundParams(key);
+      }
+    });
+  });
+}
+
+function buildGameParams() {
+  const gameWrap = $("gameParams");
+  const timelineWrap = $("timelineParams");
+
+  const gameParams = [
+    ["escapeDistance", "通关前进时间", 5, 180, 0.1],
+    ["firstMonsterDelay", "首次怪物延迟", 0, 60, 0.1],
+    ["monsterReturnMin", "怪物返回最短", 0, 60, 0.1],
+    ["monsterReturnMax", "怪物返回最长", 0, 90, 0.1],
+
+    ["monsterStartDistance", "怪物初始距离", 0.3, 5, 0.01],
+    ["monsterEscapeDistance", "怪物离开距离", 0.3, 8, 0.01],
+    ["monsterApproachSpeed", "行动时逼近速度", 0.01, 2, 0.01],
+    ["monsterRetreatSpeed", "静止时退去速度", 0.01, 2, 0.01],
+    ["monsterThinkInterval", "怪物计算间隔", 0.05, 1.5, 0.01],
+
+    ["monsterFarStepInterval", "远处脚步间隔", 0.1, 3, 0.01],
+    ["monsterNearStepInterval", "近处脚步间隔", 0.05, 2, 0.01],
+
+    ["monsterSpatialRadius", "最远空间半径", 2, 18, 0.1],
+    ["monsterMinSpatialRadius", "最近空间半径", 0.2, 4, 0.1],
+
+    ["monsterVoiceMinInterval", "叫声最短间隔", 0.5, 30, 0.1],
+    ["monsterVoiceMaxInterval", "叫声最长间隔", 0.5, 60, 0.1],
+    ["monsterVoiceChanceWhenFar", "远处叫声概率", 0, 1, 0.01],
+    ["monsterVoiceChanceWhenNear", "近处叫声概率", 0, 1, 0.01],
+    ["monsterCoastDuration", "松手后继续逼近时间", 0, 5, 0.1]
+  ];
+
+  const timelineParams = [
+    ["getupTime", "起身触发时间", 0, 60, 0.1],
+    ["doorTime", "铁门触发时间", 0, 120, 0.1],
+    ["mudTime", "泥地切换时间", 0, 180, 0.1]
+  ];
+
+  gameWrap.innerHTML = "";
+  timelineWrap.innerHTML = "";
+
+  for (const [key, label, min, max, step] of gameParams) {
+    const value = config.game[key];
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <span>${label}</span>
+      <input data-game-param="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}">
+      <span class="value" id="gameval_${key}">${Number(value).toFixed(2)}</span>
+    `;
+    gameWrap.appendChild(row);
+  }
+
+  for (const [key, label, min, max, step] of timelineParams) {
+    const value = config.timeline[key];
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <span>${label}</span>
+      <input data-timeline-param="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${value}">
+      <span class="value" id="tlval_${key}">${Number(value).toFixed(1)}</span>
+    `;
+    timelineWrap.appendChild(row);
+  }
+
+  document.querySelectorAll("[data-game-param]").forEach(input => {
+    input.addEventListener("input", e => {
+      const key = e.target.dataset.gameParam;
+      const value = Number(e.target.value);
+      config.game[key] = value;
+      $(`gameval_${key}`).textContent = value.toFixed(2);
+      saveConfig();
+    });
+  });
+
+  document.querySelectorAll("[data-timeline-param]").forEach(input => {
+    input.addEventListener("input", e => {
+      const key = e.target.dataset.timelineParam;
+      const value = Number(e.target.value);
+      config.timeline[key] = value;
+      $(`tlval_${key}`).textContent = value.toFixed(1);
+      saveConfig();
+    });
+  });
+}
+
+function setSoundStatus(key, status) {
+  const dot = $(`dot_${key}`);
+  if (!dot) return;
+  dot.className = "status-dot";
+  if (status) dot.classList.add(status);
+}
+
+function setDuration(key, duration) {
+  const el = $(`duration_${key}`);
+  if (el && Number.isFinite(duration)) {
+    el.textContent = `时长：${duration.toFixed(2)} 秒`;
+  }
+}
+
+async function toggleScenePreview(button, scene) {
+  await ensureAudioSystem();
+
+  if (button.classList.contains("playing")) {
+    stopScene(scene);
+    button.classList.remove("playing");
+    activeSceneButtons.delete(scene);
+    return;
+  }
+
+  stopScene(scene);
+  button.classList.add("playing");
+  activeSceneButtons.set(scene, button);
+
+  if (scene === "ambient") {
+    await playSingleton("bg_ambient", { restart: false, loop: true });
+  }
+
+  if (scene === "metalWalk") {
+    await playSingleton("player_metal", { restart: false, loop: true });
+  }
+
+  if (scene === "mudWalk") {
+    await playSingleton("player_mud", { restart: false, loop: true });
+  }
+
+  if (scene === "getup") {
+    await playSingleton("action_getup", { restart: true, loop: false });
+  }
+
+  if (scene === "door") {
+    await playSingleton("action_door", { restart: true, loop: false });
+  }
+
+  if (scene === "monsterStepFar") {
+    await playSingleton("monster_step", {
+      restart: true,
+      loop: true,
+      volume: 0.35 * config.sounds.monster_step.volume,
+      lowpass: 500,
+      x: -5,
+      y: 0,
+      z: -7
+    });
+  }
+
+  if (scene === "monsterStepNear") {
+    await playSingleton("monster_step", {
+      restart: true,
+      loop: true,
+      volume: 1.15 * config.sounds.monster_step.volume,
+      lowpass: 6800,
+      x: 1.2,
+      y: 0,
+      z: -0.9
+    });
+  }
+
+  if (scene === "monsterVoiceFar") {
+    await playSingleton("monster_voice", {
+      restart: true,
+      loop: false,
+      volume: 0.45 * config.sounds.monster_voice.volume,
+      lowpass: 1000,
+      x: 5,
+      y: 0,
+      z: 6
+    });
+  }
+
+  if (scene === "monsterVoiceNear") {
+    await playSingleton("monster_voice", {
+      restart: true,
+      loop: false,
+      volume: 1.25 * config.sounds.monster_voice.volume,
+      lowpass: 9000,
+      x: -0.7,
+      y: 0,
+      z: -0.8
+    });
+  }
+
+  if (scene === "caught") {
+    await playSingleton("monster_caught", { restart: true, loop: false });
+  }
+
+  if (scene === "escape") {
+    await playSingleton("escape_light", { restart: true, loop: false });
+  }
+}
+
+function stopScene(scene) {
+  const sceneMap = {
+    ambient: ["bg_ambient"],
+    metalWalk: ["player_metal"],
+    mudWalk: ["player_mud"],
+    getup: ["action_getup"],
+    door: ["action_door"],
+    monsterStepFar: ["monster_step"],
+    monsterStepNear: ["monster_step"],
+    monsterVoiceFar: ["monster_voice"],
+    monsterVoiceNear: ["monster_voice"],
+    caught: ["monster_caught"],
+    escape: ["escape_light"]
+  };
+
+  const keys = sceneMap[scene] || [];
+  keys.forEach(stopSound);
+}
+
+function clearActiveSceneButtons() {
+  for (const btn of activeSceneButtons.values()) {
+    btn.classList.remove("playing");
+  }
+  activeSceneButtons.clear();
+}
+
+function updateSceneButtonsBySound(key) {
+  for (const [scene, btn] of activeSceneButtons.entries()) {
+    const map = {
+      ambient: "bg_ambient",
+      metalWalk: "player_metal",
+      mudWalk: "player_mud",
+      getup: "action_getup",
+      door: "action_door",
+      monsterStepFar: "monster_step",
+      monsterStepNear: "monster_step",
+      monsterVoiceFar: "monster_voice",
+      monsterVoiceNear: "monster_voice",
+      caught: "monster_caught",
+      escape: "escape_light"
+    };
+
+    if (map[scene] === key && sounds[key]?.audio.paused) {
+      btn.classList.remove("playing");
+      activeSceneButtons.delete(scene);
+    }
+  }
+}
+
+async function startGame() {
+  await ensureAudioSystem();
+  stopAllSounds();
+
+  resetGameState();
+  switchScreen("play");
+
+  gameRunning = true;
+  gameOver = false;
+  lastFrameTime = performance.now();
+
+  await playSingleton("bg_ambient", { restart: false, loop: true });
+
+  setTimeout(() => {
+    if (gameRunning && !gameOver) {
+      activateMonster();
+    }
+  }, config.game.firstMonsterDelay * 1000);
+
+  updateAssistText();
+  requestAnimationFrame(gameLoop);
+}
+
+function resetGameState() {
+  gameRunning = false;
+  gameOver = false;
+  holding = false;
+  progress = 0;
+  currentTerrain = "player_metal";
+  lastReleaseTime = 0;
+
+  eventQueue = [];
+  currentEventKey = null;
+
+  timelineState = {
+    getup: false,
+    door: false,
+    mud: false
+  };
+
+  monster.active = false;
+  monster.distance = config.game.monsterStartDistance;
+  monster.wasApproaching = true;
+  randomizeMonsterDirection();
+
+  clearTimeout(monster.thinkTimer);
+  clearTimeout(monster.stepTimer);
+  clearTimeout(monster.voiceTimer);
+
+  monster.thinkTimer = null;
+  monster.stepTimer = null;
+  monster.voiceTimer = null;
+
+  $("playButton").classList.remove("pressed");
+  setDangerVisual(0);
+  updateAssistText();
+}
+
+function updateAssistText() {
+  const el = $("assistText");
+  if (!el) return;
+
+  if (!gameRunning || gameOver || !assistMode) {
+    el.classList.remove("active");
+    el.textContent = "";
+    return;
+  }
+
+  let text = "";
+  let color = "rgba(255,255,255,0.6)";
+
+  if (holding) {
+    if (monster.active) {
+      const deathThreshold = 0.02;
+      const remainingDistance = monster.distance - deathThreshold;
+      const approachSpeed = config.game.monsterApproachSpeed;
+      const timeToDeath = remainingDistance / approachSpeed;
+
+      if (timeToDeath <= 0.50) {
+        text = "快松手";
+        color = "#ff4545";
+      } else if (timeToDeath <= 1.60) {
+        text = "";
+      } else {
+        text = "不要松手";
+        color = "#42ff9a";
+      }
+    } else {
+      text = "不要松手";
+      color = "#42ff9a";
+    }
+  } else {
+    const escDist = config.game.monsterEscapeDistance;
+    const isSafeToPress = !monster.active || (monster.distance >= escDist * 0.90);
+
+    if (isSafeToPress) {
+      text = "按下按钮";
+      color = "rgba(255,255,255,0.6)";
+    } else {
+      if (monster.active && monster.distance < escDist * 0.80) {
+        text = "先别按";
+        color = "#ffb242";
+      } else {
+        text = "";
+      }
+    }
+  }
+
+  if (text) {
+    el.textContent = text;
+    el.style.color = color;
+    el.classList.add("active");
+  } else {
+    el.classList.remove("active");
+  }
+}
+
+function pressAction() {
+  if (!gameRunning || gameOver || holding) return;
+
+  holding = true;
+  $("playButton").classList.add("pressed");
+
+  if (currentEventKey) {
+    resumeCurrentEvent();
+  } else if (eventQueue.length > 0) {
+    startNextEvent();
+  } else {
+    resumeWalking();
+  }
+  updateAssistText();
+}
+
+function releaseAction() {
+  if (!holding) return;
+
+  holding = false;
+  lastReleaseTime = performance.now();
+  $("playButton").classList.remove("pressed");
+
+  pauseWalking();
+
+  if (currentEventKey) {
+    pauseSound(currentEventKey);
+  }
+  updateAssistText();
+}
+
+function resumeWalking() {
+  if (!holding || currentEventKey || eventQueue.length > 0) return;
+
+  const walkKey = currentTerrain;
+  const otherWalkKey = walkKey === "player_metal" ? "player_mud" : "player_metal";
+
+  pauseSound(otherWalkKey);
+  playSingleton(walkKey, { restart: false, loop: true });
+}
+
+function pauseWalking() {
+  pauseSound("player_metal");
+  pauseSound("player_mud");
+}
+
+function enqueueEvent(key) {
+  if (eventQueue.includes(key) || currentEventKey === key) return;
+
+  eventQueue.push(key);
+
+  if (holding && !currentEventKey) {
+    startNextEvent();
+  }
+}
+
+async function startNextEvent() {
+  if (!holding || currentEventKey || eventQueue.length === 0) return;
+
+  pauseWalking();
+
+  currentEventKey = eventQueue.shift();
+
+  await playSingleton(currentEventKey, {
+    restart: true,
+    loop: false
+  });
+}
+
+function resumeCurrentEvent() {
+  if (!currentEventKey) return;
+
+  pauseWalking();
+
+  playSingleton(currentEventKey, {
+    restart: false,
+    loop: false
+  });
+}
+
+function finishCurrentEvent() {
+  currentEventKey = null;
+
+  if (!gameRunning || gameOver) return;
+
+  if (holding) {
+    if (eventQueue.length > 0) {
+      startNextEvent();
+    } else {
+      resumeWalking();
+    }
+  }
+}
+
+function gameLoop(now) {
+  if (!gameRunning || gameOver) return;
+
+  const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+  lastFrameTime = now;
+
+  if (holding) {
+    progress += dt;
+    checkTimeline();
+  }
+
+  updateAssistText();
+
+  if (progress >= config.game.escapeDistance) {
+    escapeEnding();
+    return;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+function checkTimeline() {
+  if (!timelineState.getup && progress >= config.timeline.getupTime) {
+    timelineState.getup = true;
+    enqueueEvent("action_getup");
+  }
+
+  if (!timelineState.door && progress >= config.timeline.doorTime) {
+    timelineState.door = true;
+    enqueueEvent("action_door");
+  }
+
+  if (!timelineState.mud && progress >= config.timeline.mudTime) {
+    timelineState.mud = true;
+    currentTerrain = "player_mud";
+
+    if (holding && !currentEventKey) {
+      pauseSound("player_metal");
+      resumeWalking();
+    }
+  }
+}
+
+function randomizeMonsterDirection() {
+  monster.angle = Math.random() * Math.PI * 2;
+  monster.targetAngle = monster.angle;
+  updateMonsterPosition();
+}
+
+function updateMonsterPosition() {
+  const intensity = getMonsterIntensity();
+  const radius = lerp(
+    config.game.monsterSpatialRadius,
+    config.game.monsterMinSpatialRadius,
+    intensity
+  );
+
+  monster.x = Math.sin(monster.angle) * radius;
+  monster.z = -Math.cos(monster.angle) * radius;
+  monster.y = 0;
+}
+
+function activateMonster() {
+  if (!gameRunning || gameOver || monster.active) return;
+
+  monster.active = true;
+  monster.distance = config.game.monsterStartDistance;
+  monster.wasApproaching = true;
+
+  randomizeMonsterDirection();
+
+  monsterThink();
+  monsterStepLoop();
+  scheduleMonsterVoice();
+}
+
+function monsterThink() {
+  if (!gameRunning || gameOver || !monster.active) return;
+
+  const dt = config.game.monsterThinkInterval;
+  const now = performance.now();
+
+  const isCoasting = !holding && (now - lastReleaseTime) < (config.game.monsterCoastDuration * 1000);
+  const isApproaching = holding || isCoasting;
+
+  if (isApproaching) {
+    monster.distance -= config.game.monsterApproachSpeed * dt;
+    monster.targetAngle = monster.angle;
+    monster.wasApproaching = true;
+  } else {
+    if (monster.wasApproaching) {
+      const angleDeviation = (Math.random() >= 0.5 ? 1 : -1) * (1.8 + Math.random() * 1.5);
+      monster.targetAngle = monster.angle + angleDeviation;
+      monster.wasApproaching = false;
+    }
+
+    monster.distance += config.game.monsterRetreatSpeed * dt;
+
+    let deltaAngle = monster.targetAngle - monster.angle;
+    deltaAngle = Math.atan2(Math.sin(deltaAngle), Math.cos(deltaAngle));
+    monster.angle += deltaAngle * dt * 0.95;
+  }
+
+  monster.distance = clamp(monster.distance, 0, config.game.monsterEscapeDistance + .2);
+
+  updateMonsterPosition();
+
+  const intensity = getMonsterIntensity();
+  setDangerVisual(intensity);
+
+  if (monster.distance <= 0.02) {
+    if (holding) {
+      caughtEnding();
+      return;
+    } else {
+      monster.distance = 0.03;
+    }
+  }
+
+  if (!holding && !isCoasting && monster.distance >= config.game.monsterEscapeDistance) {
+    monster.active = false;
+    setDangerVisual(0);
+
+    clearTimeout(monster.stepTimer);
+    clearTimeout(monster.voiceTimer);
+    monster.stepTimer = null;
+    monster.voiceTimer = null;
+
+    const min = config.game.monsterReturnMin;
+    const max = Math.max(min, config.game.monsterReturnMax);
+    const delay = (min + Math.random() * (max - min)) * 1000;
+
+    monster.thinkTimer = setTimeout(() => {
+      if (gameRunning && !gameOver) activateMonster();
+    }, delay);
+
+    return;
+  }
+
+  monster.thinkTimer = setTimeout(monsterThink, dt * 1000);
+}
+
+function monsterStepLoop() {
+  if (!gameRunning || gameOver || !monster.active) return;
+
+  const intensity = getMonsterIntensity();
+
+  const volume = (0.18 + intensity * 1.15) * config.sounds.monster_step.volume;
+  const lowpass = 240 + intensity * 7600;
+
+  const step = sounds.monster_step;
+
+  if (step && step.audio.paused) {
+    playSingleton("monster_step", {
+      restart: true,
+      loop: false,
+      volume,
+      lowpass,
+      x: monster.x,
+      y: monster.y,
+      z: monster.z
+    });
+  } else {
+    applySoundParams("monster_step", {
+      volume,
+      lowpass,
+      x: monster.x,
+      y: monster.y,
+      z: monster.z
+    });
+  }
+
+  const interval = lerp(
+    config.game.monsterFarStepInterval,
+    config.game.monsterNearStepInterval,
+    intensity
+  );
+
+  monster.stepTimer = setTimeout(monsterStepLoop, interval * 1000);
+}
+
+function scheduleMonsterVoice() {
+  if (!gameRunning || gameOver || !monster.active) return;
+
+  const min = config.game.monsterVoiceMinInterval;
+  const max = Math.max(min, config.game.monsterVoiceMaxInterval);
+  const delay = (min + Math.random() * (max - min)) * 1000;
+
+  monster.voiceTimer = setTimeout(() => {
+    monsterVoiceAttempt();
+    scheduleMonsterVoice();
+  }, delay);
+}
+
+function monsterVoiceAttempt() {
+  if (!gameRunning || gameOver || !monster.active) return;
+
+  const intensity = getMonsterIntensity();
+
+  const chance = lerp(
+    config.game.monsterVoiceChanceWhenFar,
+    config.game.monsterVoiceChanceWhenNear,
+    intensity
+  );
+
+  if (Math.random() > chance) return;
+
+  const voice = sounds.monster_voice;
+
+  if (!voice || !voice.loaded) return;
+
+  const volume = (0.22 + intensity * 1.18) * config.sounds.monster_voice.volume;
+  const lowpass = 420 + intensity * 9800;
+
+  if (voice.audio.paused) {
+    playSingleton("monster_voice", {
+      restart: true,
+      loop: false,
+      volume,
+      lowpass,
+      x: monster.x,
+      y: monster.y,
+      z: monster.z
+    });
+  } else {
+    applySoundParams("monster_voice", {
+      volume,
+      lowpass,
+      x: monster.x,
+      y: monster.y,
+      z: monster.z
+    });
+  }
+}
+
+function getMonsterIntensity() {
+  return clamp(1 - monster.distance / config.game.monsterStartDistance, 0, 1);
+}
+
+function setDangerVisual(intensity) {
+  const a = clamp(intensity, 0, 1) * .78;
+  $("dangerOverlay").style.background =
+    `radial-gradient(circle, rgba(150,0,0,${a}) 0%, rgba(50,0,0,${a * .45}) 35%, rgba(0,0,0,0) 76%)`;
+}
+
+function caughtEnding() {
+  gameOver = true;
+  gameRunning = false;
+
+  releaseAction();
+
+  stopSound("bg_ambient");
+  pauseWalking();
+  stopSound("monster_step");
+  stopSound("monster_voice");
+
+  setDangerVisual(1);
+  updateAssistText();
+
+  playSingleton("monster_caught", {
+    restart: true,
+    loop: false,
+    volume: 1.25,
+    pan: 0,
+    lowpass: 20000
+  });
+
+  setTimeout(returnToLobby, 8000);
+}
+
+function escapeEnding() {
+  gameOver = true;
+  gameRunning = false;
+
+  releaseAction();
+
+  stopSound("bg_ambient");
+  pauseWalking();
+  stopSound("monster_step");
+  stopSound("monster_voice");
+
+  setDangerVisual(0);
+  updateAssistText();
+
+  playSingleton("escape_light", {
+    restart: true,
+    loop: false
+  });
+
+  $("playScreen").style.transition = "background 6s ease";
+  $("playScreen").style.background = "#fff";
+
+  setTimeout(() => {
+    $("playScreen").style.transition = "";
+    $("playScreen").style.background = "#000";
+    returnToLobby();
+  }, 12000);
+}
+
+function returnToLobby() {
+  stopAllSounds();
+  resetGameState();
+  switchScreen("lobby");
+}
+
+/* 按钮事件绑定 */
+$("closeIntro").addEventListener("click", () => {
+  // 点击确认关闭介绍界面，同时初始化音频上下文
+  $("introOverlay").style.display = "none";
+  ensureAudioSystem().catch(() => {});
+});
+
+$("enterPlay").addEventListener("click", startGame);
+
+$("enterConsole").addEventListener("click", async () => {
+  switchScreen("console");
+  buildSoundList();
+  buildGameParams();
+  await ensureAudioSystem();
+});
+
+$("backLobby").addEventListener("click", () => {
+  stopAllSounds();
+  switchScreen("lobby");
+});
+
+$("exitPlay").addEventListener("click", returnToLobby);
+
+$("reloadAudio").addEventListener("click", async () => {
+  stopAllSounds();
+  refreshAudioSources();
+  await checkAllAudioFiles();
+});
+
+$("stopAll").addEventListener("click", () => {
+  stopAllSounds();
+  log("已停止全部声音。");
+});
+
+$("resetConfig").addEventListener("click", () => {
+  if (!confirm("确定恢复默认参数吗？")) return;
+
+  localStorage.removeItem(STORAGE_KEY);
+  config = clone(DEFAULT_CONFIG);
+
+  if (audioCtx) {
+    refreshAudioSources();
+  }
+
+  buildSoundList();
+  buildGameParams();
+  log("已恢复默认参数。");
+});
+
+document.querySelectorAll("[data-scene]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    toggleScenePreview(btn, btn.dataset.scene);
+  });
+});
+
+$("assistToggle").addEventListener("change", e => {
+  assistMode = e.target.checked;
+  updateAssistText();
+});
+
+const playButton = $("playButton");
+
+playButton.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  playButton.setPointerCapture?.(e.pointerId);
+  pressAction();
+});
+
+playButton.addEventListener("pointerup", e => {
+  e.preventDefault();
+  releaseAction();
+});
+
+playButton.addEventListener("pointercancel", releaseAction);
+playButton.addEventListener("pointerleave", releaseAction);
+
+window.addEventListener("blur", releaseAction);
+
+buildSoundList();
+buildGameParams();
+
+boot(`页面已载入。
+
+目录结构应为：
+index.html
+assets/bg_ambient.mp3
+assets/player_metal.mp3
+assets/player_mud.mp3
+assets/action_getup.mp3
+assets/action_door.mp3
+assets/monster_step.mp3
+assets/monster_voice.mp3
+assets/monster_caught.mp3
+assets/escape_light.mp3
+
+请用服务器方式打开，例如：
+python -m http.server 3415`);
+</script>
+</body>
+</html>
